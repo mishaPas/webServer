@@ -1,4 +1,6 @@
 #include "http.hpp"
+#include "router.hpp"
+#include "storage.hpp"
 
 #include <atomic>
 #include <cerrno>
@@ -24,16 +26,6 @@ void handle_signal(int) {
     }
 }
 
-HttpResponse route_v01(const HttpRequest& req) {
-    if (req.path != "/health") {
-        return HttpResponse{404, "{\"error\":\"not found\"}", req.keep_alive};
-    }
-    if (req.method != "GET") {
-        return HttpResponse{405, "{\"error\":\"method not allowed\"}", req.keep_alive};
-    }
-    return HttpResponse{200, "{\"status\":\"ok\"}", req.keep_alive};
-}
-
 bool send_all(int fd, const std::string& data) {
     std::size_t sent = 0;
     while (sent < data.size()) {
@@ -47,7 +39,7 @@ bool send_all(int fd, const std::string& data) {
     return true;
 }
 
-void handle_client(int client_fd) {
+void handle_client(int client_fd, const Router& router) {
     int nodelay = 1;
     setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
 
@@ -68,7 +60,7 @@ void handle_client(int client_fd) {
             }
 
             buffer.erase(0, parsed.bytes_consumed);
-            HttpResponse resp = route_v01(parsed.request);
+            HttpResponse resp = router.handle(parsed.request);
             if (!send_all(client_fd, serialize_http_response(resp))) {
                 close(client_fd);
                 return;
@@ -124,8 +116,11 @@ void run_http_server(uint16_t port, std::size_t /*threads*/) {
     std::signal(SIGTERM, handle_signal);
     std::signal(SIGPIPE, SIG_IGN);
 
+    Storage storage;
+    Router router(storage);
+
     g_running.store(true);
-    std::cout << "v0.1 server listening on port " << port << "\n";
+    std::cout << "v0.2 server listening on port " << port << "\n";
 
     while (g_running.load()) {
         int client_fd = accept(g_listen_fd, nullptr, nullptr);
@@ -133,7 +128,7 @@ void run_http_server(uint16_t port, std::size_t /*threads*/) {
             if (errno == EINTR) continue;
             break;
         }
-        handle_client(client_fd);
+        handle_client(client_fd, router);
     }
 
     if (g_listen_fd >= 0) {
