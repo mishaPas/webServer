@@ -8,8 +8,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(Threads REQUIRED)
 
 add_library(server_lib
-src/http.cpp
-src/server.cpp
+    src/http.cpp
+    src/storage.cpp
+    src/router.cpp
+    src/server.cpp
 )
 
 target_include_directories(server_lib PUBLIC include)
@@ -18,3 +20,6 @@ target_compile_options(server_lib PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(server src/main.cpp)
 target_link_libraries(server PRIVATE server_lib)
+
+add_executable(unit_tests tests/unit_tests.cpp)
+target_link_libraries(unit_tests PRIVATE server_lib)

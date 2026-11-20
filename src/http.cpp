@@ -21,12 +21,32 @@ std::string_view trim(std::string_view s) {
     return s;
 }
 
+void parse_query(std::string_view qs, std::unordered_map<std::string, std::string>& out) {
+    while (!qs.empty()) {
+        std::size_t amp = qs.find('&');
+        std::string_view pair = (amp == std::string_view::npos) ? qs : qs.substr(0, amp);
+        if (!pair.empty()) {
+            std::size_t eq = pair.find('=');
+            if (eq == std::string_view::npos) {
+                out[std::string(pair)] = "";
+            } else {
+                out[std::string(pair.substr(0, eq))] = std::string(pair.substr(eq + 1));
+            }
+        }
+        if (amp == std::string_view::npos) break;
+        qs.remove_prefix(amp + 1);
+    }
+}
+
 std::string status_text(int code) {
     switch (code) {
         case 200: return "OK";
+        case 201: return "Created";
+        case 204: return "No Content";
         case 400: return "Bad Request";
         case 404: return "Not Found";
         case 405: return "Method Not Allowed";
+        case 409: return "Conflict";
         default:  return "OK";
     }
 }
@@ -64,7 +84,12 @@ ParseResult try_parse_http_request(std::string_view buffer) {
 
     req.keep_alive = (version == "HTTP/1.1");
     std::size_t qpos = target.find('?');
-    req.path = std::string((qpos == std::string_view::npos) ? target : target.substr(0, qpos));
+    if (qpos == std::string_view::npos) {
+        req.path = std::string(target);
+    } else {
+        req.path = std::string(target.substr(0, qpos));
+        parse_query(target.substr(qpos + 1), req.query_params);
+    }
 
     if (line_end != std::string_view::npos) {
         std::string_view rest = head.substr(line_end + 2);

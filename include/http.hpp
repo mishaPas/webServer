@@ -8,6 +8,7 @@
 struct HttpRequest {
     std::string method;
     std::string path;
+    std::unordered_map<std::string, std::string> query_params;
     std::unordered_map<std::string, std::string> headers;
     std::string body;
     bool keep_alive = true;
